@@ -18,15 +18,19 @@ sign-in) and Tesla's `time_of_use_settings` API.
   that label's prices and the Tesla app keeps its colours.
 * **Relabel (optional):** e.g. Peak → Mid-Peak for the rest of the session's
   day, so the session is the only Peak window.
-* **Drain (optional, for cheap/free sessions):** the same length of time right
-  before each block of sessions gets another label (usually Peak), so the
-  battery exports first and refills during the session.
-  * One hour at 13:00 drains 12:00–13:00.
-  * 13:00–15:00 drains 11:00–13:00.
-  * 11:00–12:00 plus 13:00–14:00 drains 10:00–11:00 and 12:00–13:00.
+* **Drain (optional, for cheap/free sessions):** a window right before each
+  block of sessions gets another label (usually Peak), so the battery exports
+  first and refills during the session.
+  * **Drain length** in the blueprint:
+    * **Blank (default):** the same length as the block.
+    * **A number:** that many minutes, e.g. 90.
+    * **0:** no drain.
+  * With the length left blank:
+    * One hour at 13:00 drains 12:00–13:00.
+    * 13:00–15:00 drains 11:00–13:00.
+    * 11:00–12:00 plus 13:00–14:00 drains 10:00–11:00 and 12:00–13:00.
+  * With 90: 13:00–15:00 drains 11:30–13:00.
   * A drain never overlaps an earlier session.
-  * Set a **drain length** (e.g. 90 minutes) for a fixed length instead; 0
-    (the default) matches each block's length.
 * **Timing:**
   * A session for today goes into the plan straight away.
   * A session for a later day goes in at 00:00 that day, or as soon as it's
@@ -112,10 +116,10 @@ plus `first_test.yaml` for a step-by-step first test.
 
 **Typical settings:**
 
-| Session type | Label | Relabel | Drain with |
-|---|---|---|---|
-| Export / saving (e.g. Octopus Power Down) | Peak | `{"Peak": "Mid-Peak"}` | (empty) |
-| Cheap / free (e.g. Octopus Power Up) | Super Off-Peak | `{}` | Peak |
+| Session type | Label | Relabel | Drain with | Drain length |
+|---|---|---|---|---|
+| Export / saving (e.g. Octopus Power Down) | Peak | `{"Peak": "Mid-Peak"}` | (empty) | (not used) |
+| Cheap / free (e.g. Octopus Power Up) | Super Off-Peak | `{}` | Peak | blank = same as the session; a number of minutes; 0 = none |
 
 ## Notifications
 

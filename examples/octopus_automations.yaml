@@ -61,6 +61,8 @@
         label: Super Off-Peak  # the free window: charge
         pre_label: Peak        # drain beforehand: export for the same length of
                                # time right before each block of sessions
+        # pre_minutes: 90      # optional fixed drain length in minutes (leave
+                               # out to match the session; drop pre_label for none)
 
 - id: tesla_tariff_pushed_notify
   alias: Powerwall - Notify when the rate plan changes
