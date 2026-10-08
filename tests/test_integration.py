@@ -18,7 +18,7 @@ from tesla_fleet_api.tariff import get_tariff_periods
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
@@ -861,3 +861,38 @@ async def test_normal_plan_blueprint_defaults_are_ryans_plan(hass, site, bp_conf
     assert len(sop) == 1  # one 23:30-05:30 row
     mid = t["seasons"]["All Year"]["tou_periods"]["PARTIAL_PEAK"]["periods"]
     assert len(mid) == 5  # override-ready blocks kept separate
+
+
+async def test_resolve_does_not_read_device_config_entries(hass, site):
+    """HA retires DeviceEntry.config_entries in 2027.10: don't touch it."""
+    real = dr.DeviceEntry.config_entries
+
+    class Tripwire:
+        def __get__(self, obj, owner=None):
+            raise AssertionError("DeviceEntry.config_entries was read")
+
+    with patch.object(dr.DeviceEntry, "config_entries", Tripwire()):
+        status = await site.call("get_status")
+        await site.call("add_event", start=at(WED, "18:00"), end=at(WED, "19:00"),
+                        label="Peak", event_id="t", dry_run=True)
+    assert status["site_id"] == str(SITE_ID)
+    assert dr.DeviceEntry.config_entries is real
+
+
+async def test_resolve_errors(hass, site):
+    other = MockConfigEntry(domain="other")
+    other.add_to_hass(hass)
+    stranger = dr.async_get(hass).async_get_or_create(
+        config_entry_id=other.entry_id, identifiers={("other", "x")}, name="Kettle")
+    with pytest.raises(ServiceValidationError, match="not a Tesla Fleet device"):
+        await hass.services.async_call(DOMAIN, "get_status", {"device_id": stranger.id},
+                                       blocking=True, return_response=True)
+    car = dr.async_get(hass).async_get_or_create(
+        config_entry_id=site.entry.entry_id, identifiers={("tesla_fleet", "VIN123")},
+        name="Model Y")
+    with pytest.raises(ServiceValidationError, match="not a Tesla energy site"):
+        await hass.services.async_call(DOMAIN, "get_status", {"device_id": car.id},
+                                       blocking=True, return_response=True)
+    site.entry.mock_state(hass, ConfigEntryState.NOT_LOADED)
+    with pytest.raises(HomeAssistantError, match="not loaded"):
+        await site.call("get_status")
