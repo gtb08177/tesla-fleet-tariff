@@ -1,0 +1,74 @@
+# First live test - run these from Developer tools > Actions > Go to YAML
+# mode, in order. Powerwall device: bc321dd4751a8e158661a35a5554e9ee
+
+# 1. Normal plan, dry run: check the payload, nothing sent.
+action: tesla_fleet_tariff.set_base_tariff
+data:
+  device_id: bc321dd4751a8e158661a35a5554e9ee
+  name: Octopus Intelligent Go
+  utility: Home Assistant
+  dry_run: true
+  rates:
+    - { start: "05:30", label: Mid-Peak,       buy: 0.35, sell: 0.01 }
+    - { start: "13:00", label: Mid-Peak,       buy: 0.35, sell: 0.01 }
+    - { start: "15:00", label: Mid-Peak,       buy: 0.35, sell: 0.01 }
+    - { start: "18:00", label: Mid-Peak,       buy: 0.35, sell: 0.01 }
+    - { start: "19:00", label: Mid-Peak,       buy: 0.35, sell: 0.01 }
+    - { start: "20:30", label: Peak,           buy: 0.35, sell: 0.12 }
+    - { start: "23:30", label: Super Off-Peak, buy: 0.07, sell: 0.01 }
+# -> then run your "Powerwall - Set normal rate plan" script for real. The
+#    Tesla app should show "Octopus Intelligent Go (Normal)" with your usual
+#    rows and one 23:30-05:30 Super Off-Peak row.
+---
+# 2. Session sync, dry run: shows what the current Octopus sessions would do.
+action: tesla_fleet_tariff.sync_events
+data:
+  device_id: bc321dd4751a8e158661a35a5554e9ee
+  entity_id: event.octopus_energy_a_bc039fe4_octoplus_power_down_events
+  name: Power Down
+  label: Peak
+  relabel: { Peak: Mid-Peak }
+  dry_run: true
+---
+# 3. Fake Power Down session TODAY - use a whole block of your normal plan
+#    (e.g. 18:00-19:00) and set today's date. Sends a real change to Tesla:
+#    the app shows "Octopus Intelligent Go (Power Down)", Peak for this window
+#    and Mid-Peak from 20:30-23:30; the Powerwall should export during the
+#    window. The normal plan is pushed back automatically at the end, and
+#    your notification reads "Pushed: Power Down (18:00 - 19:00)"
+#    then "Pushed: Normal rate plan".
+action: tesla_fleet_tariff.add_event
+data:
+  device_id: bc321dd4751a8e158661a35a5554e9ee
+  event_id: test-1
+  name: Power Down
+  start: "YYYY-MM-DD 18:00:00"
+  end: "YYYY-MM-DD 19:00:00"
+  label: Peak
+  relabel: { Peak: Mid-Peak }
+---
+# 3b. Fake Power Up session with the drain (optional), e.g. 13:00-14:00:
+#     Peak 12:00-13:00 (export) then Super Off-Peak 13:00-14:00.
+action: tesla_fleet_tariff.add_event
+data:
+  device_id: bc321dd4751a8e158661a35a5554e9ee
+  event_id: test-2
+  name: Power Up
+  start: "YYYY-MM-DD 13:00:00"
+  end: "YYYY-MM-DD 14:00:00"
+  label: Super Off-Peak
+  pre_label: Peak
+---
+# 4. Check at any time.
+action: tesla_fleet_tariff.get_status
+data:
+  device_id: bc321dd4751a8e158661a35a5554e9ee
+---
+# 5. Abort a test and go back to normal now (also removes its drain window).
+action: tesla_fleet_tariff.remove_event
+data:
+  device_id: bc321dd4751a8e158661a35a5554e9ee
+  event_id: test-1
+# Or remove everything and force a fresh push of the normal plan:
+#   action: tesla_fleet_tariff.clear_events
+#   data: { device_id: bc321dd4751a8e158661a35a5554e9ee }

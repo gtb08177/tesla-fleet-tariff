@@ -1,0 +1,77 @@
+# Ryan's hand-written automations (Octopus account A-BC039FE4,
+# Powerwall 3 - 32JD). The blueprint "Powerwall - Follow demand sessions"
+# and "Powerwall - Notify when the rate plan changes" do the same.
+#
+# To add one: Settings > Automations & scenes > + Create automation >
+# Create new automation > three-dot menu > Edit in YAML, paste ONE block
+# below with the leading "- " removed and everything shifted left.
+#
+# Behaviour:
+#  * Session joined for TODAY -> plan updated straight away; for a later
+#    day -> held, pushed at 00:00 that day.
+#  * Power Down day: 23:30-05:30 Super Off-Peak, the session window Peak
+#    (export lever: sell £0.12), everything else Mid-Peak - the usual
+#    20:30-23:30 Peak is flipped to Mid-Peak so the Powerwall spends its
+#    charge in the session, not later that evening.
+#  * Power Up day: the session window is Super Off-Peak and the same length
+#    of time right before each block of sessions is Peak, so the battery
+#    exports first and refills for free.
+#  * The normal plan is pushed once the day's last session ends. Removed
+#    sessions drop out on the next Octopus refresh. Tesla is only called when
+#    the plan changes.
+#
+# Normal plan: see examples/normal_rate_plan_script.yaml (run it once).
+
+- id: tesla_tariff_sync_power_down
+  alias: Energy - Powerwall rate plan follows Octopus Power Down sessions
+  mode: queued
+  max: 5
+  triggers:
+    # Octopus integration updates this entity whenever it refreshes/joins.
+    - trigger: state
+      entity_id: event.octopus_energy_a_bc039fe4_octoplus_power_down_events
+    - trigger: homeassistant
+      event: start
+  actions:
+    - action: tesla_fleet_tariff.sync_events
+      data:
+        device_id: bc321dd4751a8e158661a35a5554e9ee
+        entity_id: event.octopus_energy_a_bc039fe4_octoplus_power_down_events
+        name: Power Down
+        label: Peak          # the session window uses your Peak prices + colour
+        relabel:             # ...and is the ONLY Peak that day: the usual
+          Peak: Mid-Peak     # 20:30-23:30 Peak becomes Mid-Peak on session days
+
+- id: tesla_tariff_sync_power_up
+  alias: Energy - Powerwall rate plan follows Octopus Power Up sessions
+  mode: queued
+  max: 5
+  triggers:
+    - trigger: state
+      entity_id: event.octopus_energy_a_bc039fe4_octoplus_power_up_events
+    - trigger: homeassistant
+      event: start
+  actions:
+    - action: tesla_fleet_tariff.sync_events
+      data:
+        device_id: bc321dd4751a8e158661a35a5554e9ee
+        entity_id: event.octopus_energy_a_bc039fe4_octoplus_power_up_events
+        name: Power Up
+        attribute: events
+        label: Super Off-Peak  # the free window: charge
+        pre_label: Peak        # drain beforehand: export for the same length of
+                               # time right before each block of sessions
+
+- id: tesla_tariff_pushed_notify
+  alias: Powerwall - Notify when the rate plan changes
+  mode: queued
+  triggers:
+    - trigger: event
+      event_type: tesla_fleet_tariff_pushed
+  actions:
+    - action: notify.mobile_app_ryans_iphone
+      data:
+        title: Powerwall - Rate Plan Changed
+        # "Pushed: Normal rate plan" or
+        # "Pushed: Power Down (18:00 - 19:00)"
+        message: "{{ trigger.event.data.message }}"

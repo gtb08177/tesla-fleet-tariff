@@ -1,0 +1,63 @@
+# Ryan's normal rate plan as a hand-written script (the blueprint
+# blueprints/script/tesla_fleet_tariff/normal_rate_plan.yaml does the same).
+#
+# UI: Settings > Automations & scenes > Scripts > + Create script >
+#     three-dot menu > Edit in YAML > paste everything from "alias:" down
+#     (the UI wants alias/sequence at the top level - no script name key).
+#
+# Mid-Peak 05:30-13:00, 13:00-15:00, 15:00-18:00, 18:00-19:00, 19:00-20:30
+# Peak 20:30-23:30, Super Off-Peak 23:30-05:30.
+# Each block is its own row in the Tesla app, ready for manual overrides if
+# the automation ever fails. The Tesla app shows the plan as
+# "Octopus Intelligent Go (Normal)", "... (Power Down)" and so on.
+alias: ...
+#
+# Mid-Peak 05:30-13:00, 13:00-15:00, 15:00-18:00, 18:00-19:00, 19:00-20:30
+# Peak 20:30-23:30, Super Off-Peak 23:30-05:30.
+# Each block is sent to Tesla as its own period (separate rows in the app,
+# ready for manual overrides if the automation ever fails).
+alias: Powerwall - Set normal rate plan
+icon: mdi:cash-clock
+mode: single
+sequence:
+  - action: tesla_fleet_tariff.set_base_tariff
+    data:
+      device_id: bc321dd4751a8e158661a35a5554e9ee
+      name: Octopus Intelligent Go   # shown as '... (Normal)', '... (Power Down)' etc.
+      utility: Home Assistant        # "Utility provider" in the Tesla app
+      currency: GBP
+      rates:
+        - start: "05:30"
+          label: Mid-Peak
+          buy: 0.35
+          sell: 0.01
+        - start: "13:00"
+          label: Mid-Peak
+          buy: 0.35
+          sell: 0.01
+        - start: "15:00"
+          label: Mid-Peak
+          buy: 0.35
+          sell: 0.01
+        - start: "18:00"
+          label: Mid-Peak
+          buy: 0.35
+          sell: 0.01
+        - start: "19:00"
+          label: Mid-Peak
+          buy: 0.35
+          sell: 0.01
+        - start: "20:30"
+          label: Peak
+          buy: 0.35
+          sell: 0.12
+        - start: "23:30"
+          label: Super Off-Peak
+          buy: 0.07
+          sell: 0.01
+    response_variable: result
+  - action: persistent_notification.create
+    data:
+      title: Powerwall - Rate Plan Changed
+      message: >-
+        Normal rate plan stored. {{ 'Pushed to Tesla.' if result.pushed else 'Tesla already had it.' }}

@@ -1,0 +1,181 @@
+blueprint:
+  name: Powerwall - Follow demand sessions
+  description: >-
+    Keeps the Powerwall's utility rate plan in step with a list of demand
+    sessions from your supplier - e.g. Octopus Energy Power Down (saving)
+    or Power Up (free electricity) sessions - using the Tesla Fleet Tariff
+    integration.
+
+
+    **Session source** can be either:
+
+    * an entity with a list of sessions in an attribute - e.g. the Octopus
+    Energy integration's `event.octopus_energy_<account>_octoplus_power_down_events`
+    (attribute `joined_events`) or `..._power_up_events` (attribute `events`); or
+
+    * any **calendar** - e.g. the Octopus Energy integration's
+    `calendar.octopus_energy_<account>_octoplus_power_down`, another
+    supplier's calendar, or a Local Calendar you add events to by hand.
+
+
+    What it does:
+
+    * A session for **today** goes into the plan straight away; one for a
+    later day is held and goes in at 00:00 that day (or as soon as it's
+    known, if you choose that).
+
+    * The session window takes one of your normal plan's labels - e.g.
+    **Peak** for an export session, **Super Off-Peak** for a cheap/free
+    session - so its prices and Tesla app colour come from your normal plan.
+
+    * Optionally relabel the rest of the session's day (e.g. Peak → Mid-Peak)
+    so the session is the only Peak window.
+
+    * Optionally drain beforehand: the same length of time right before each
+    block of sessions takes another label (usually Peak), so the battery
+    exports first and refills during a free session.
+
+    * When the day's last session ends, the normal plan comes back. Removed
+    sessions drop out on the next check. Tesla is only called when the plan
+    actually changes.
+
+
+    Create one automation per session type. Run the "Set normal rate plan"
+    script first.
+  domain: automation
+  author: Tesla Fleet Tariff
+  input:
+    powerwall:
+      name: Powerwall / energy site
+      selector:
+        device:
+          filter:
+            - integration: tesla_fleet
+    session_entity:
+      name: Session source
+      description: >-
+        An entity with a list attribute of sessions, or a calendar. E.g.
+        event.octopus_energy_<account>_octoplus_power_down_events or
+        calendar.octopus_energy_<account>_octoplus_power_down.
+      selector:
+        entity:
+          filter:
+            - domain: event
+            - domain: calendar
+    attribute:
+      name: Session list attribute (list sources only)
+      description: >-
+        Which attribute holds the list. For Octopus Energy: joined_events for
+        Power Down (only sessions you've joined), events for Power Up.
+        Ignored for calendars.
+      default: joined_events
+      selector:
+        select:
+          custom_value: true
+          options:
+            - joined_events
+            - events
+    label:
+      name: Label for the session window
+      description: >-
+        One of your normal plan's labels. Peak for an export session (e.g.
+        Power Down), Super Off-Peak for a cheap/free session (e.g. Power Up).
+      default: Peak
+      selector:
+        select:
+          custom_value: true
+          options: ["Peak", "Mid-Peak", "Off-Peak", "Super Off-Peak"]
+    relabel:
+      name: Relabel the rest of the session's day
+      description: >-
+        Map of label to label for the rest of the session's day, e.g.
+        {"Peak": "Mid-Peak"} so the session is the only Peak that day.
+        Use {} for no change.
+      default: {}
+      selector:
+        object:
+    pre_label:
+      name: Drain beforehand with label (optional)
+      description: >-
+        For cheap/free sessions: a label (usually Peak) applied for the same
+        length of time immediately before each block of sessions, so the
+        battery exports first and refills during the session. Leave empty
+        for export sessions.
+      default: ""
+      selector:
+        select:
+          custom_value: true
+          options: ["", "Peak", "Mid-Peak", "Off-Peak", "Super Off-Peak"]
+    activate:
+      name: When to apply sessions on a later day
+      default: event_day
+      selector:
+        select:
+          options:
+            - label: At 00:00 on the session's day
+              value: event_day
+            - label: As soon as it is known
+              value: now
+    session_name:
+      name: Session name
+      description: >-
+        Shown in notifications and the Tesla plan name, e.g. Power Down or
+        Power Up.
+      default: Session
+      selector:
+        text:
+
+mode: queued
+max: 5
+
+variables:
+  source_entity: !input session_entity
+  is_calendar: "{{ source_entity.startswith('calendar.') }}"
+
+triggers:
+  - trigger: state
+    entity_id: !input session_entity
+  - trigger: homeassistant
+    event: start
+  # Calendars don't announce newly added events, so check regularly. This is
+  # cheap: Tesla is only called when the plan actually changes.
+  - trigger: time_pattern
+    minutes: /15
+
+actions:
+  - if:
+      - condition: template
+        value_template: "{{ is_calendar }}"
+    then:
+      - action: calendar.get_events
+        target:
+          entity_id: !input session_entity
+        data:
+          start_date_time: "{{ now().isoformat() }}"
+          duration:
+            days: 8
+        response_variable: calendar_events
+      - action: tesla_fleet_tariff.sync_events
+        data:
+          device_id: !input powerwall
+          source: "{{ source_entity }}"
+          # Timed events only (all-day calendar entries are ignored).
+          events: >-
+            {{ calendar_events[source_entity].events
+               | selectattr('start', 'search', 'T') | list }}
+          label: !input label
+          relabel: !input relabel
+          pre_label: !input pre_label
+          activate: !input activate
+          name: !input session_name
+    else:
+      - action: tesla_fleet_tariff.sync_events
+        data:
+          device_id: !input powerwall
+          entity_id: !input session_entity
+          attribute: !input attribute
+          label: !input label
+          relabel: !input relabel
+          pre_label: !input pre_label
+          activate: !input activate
+          name: !input session_name

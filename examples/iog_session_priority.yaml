@@ -1,0 +1,82 @@
+# Power Down session beats an Intelligent Go dispatch slot (hand-written;
+# the blueprint "Powerwall - Export session overrides forced charging" does
+# the same).
+#
+# 1) CHANGE to your existing automation
+#    "Powerwall - Additional Off-Peak Priced Slot Charge"
+#    (automation.powerwall_additional_off_peak_priced_slot_charge):
+#    add this condition to the "Started" and "5.40am" choose-branches, so a
+#    dispatch never flips the Powerwall into backup (Charge Now) mid-session:
+#
+#      - alias: No Power Down session running
+#        condition: state
+#        entity_id: calendar.octopus_energy_a_bc039fe4_octoplus_power_down
+#        state: "off"
+#
+#    The "Finished" branch is left alone (it only ever goes back to
+#    autonomous, which is what a session wants anyway).
+#
+# 2) NEW automation below: if a dispatch already has the Powerwall in
+#    Charge Now when a session starts, drop to your Autonomous scene so it
+#    can export; when the session ends, resume dispatch charging if the
+#    slot is still running. Charging from a dispatch *before* a session is
+#    left untouched - that's cheap energy to spend in the session.
+
+- id: powerwall_power_down_overrides_dispatch
+  alias: Powerwall - Power Down session overrides dispatch charging
+  description: >-
+    A Power Down export takes priority over an Intelligent Go dispatch slot.
+  mode: queued
+  triggers:
+    - trigger: state
+      entity_id: calendar.octopus_energy_a_bc039fe4_octoplus_power_down
+      from: "off"
+      to: "on"
+      id: session_start
+    - trigger: state
+      entity_id: calendar.octopus_energy_a_bc039fe4_octoplus_power_down
+      from: "on"
+      to: "off"
+      id: session_end
+  actions:
+    - choose:
+        - conditions:
+            - condition: trigger
+              id: session_start
+            - condition: state
+              entity_id: select.powerwall_3_32jd_operation_mode
+              state: backup
+          sequence:
+            - action: scene.turn_on
+              target:
+                entity_id: scene.powerwall_bau_time_based_control
+            - delay: "00:01:00"
+            - if:
+                - condition: state
+                  entity_id: select.powerwall_3_32jd_operation_mode
+                  state: backup
+              then:
+                - action: scene.turn_on
+                  target:
+                    entity_id: scene.powerwall_bau_time_based_control
+            - action: notify.mobile_app_ryans_iphone
+              data:
+                title: Powerwall 3
+                message: Power Down session started - left dispatch charging to export.
+        - conditions:
+            - condition: trigger
+              id: session_end
+            - condition: state
+              entity_id: binary_sensor.octopus_energy_electricity_23e5051707_3200000616186_off_peak
+              state: "on"
+            - condition: time
+              after: "05:31:00"
+              before: "20:30:00"
+          sequence:
+            - action: scene.turn_on
+              target:
+                entity_id: scene.powerwall_charge_now
+            - action: notify.mobile_app_ryans_iphone
+              data:
+                title: Powerwall 3
+                message: Power Down session ended - resuming dispatch slot charging.

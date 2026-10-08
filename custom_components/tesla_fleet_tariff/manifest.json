@@ -1,0 +1,10 @@
+{
+  "domain": "tesla_fleet_tariff",
+  "name": "Tesla Fleet Tariff",
+  "codeowners": [],
+  "dependencies": ["tesla_fleet"],
+  "documentation": "https://developer.tesla.com/docs/fleet-api/endpoints/energy#time-of-use-settings",
+  "iot_class": "cloud_polling",
+  "requirements": [],
+  "version": "0.1.0"
+}

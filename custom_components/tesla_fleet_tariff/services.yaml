@@ -1,0 +1,240 @@
+set_base_tariff:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: tesla_fleet
+    rates:
+      example: |
+        - start: "05:30"
+          buy: 0.2780
+          sell: 0.15
+        - start: "23:30"
+          buy: 0.0700
+          sell: 0.15
+      selector:
+        object:
+    tariff:
+      selector:
+        object:
+    currency:
+      default: GBP
+      selector:
+        select:
+          options: ["GBP", "EUR", "USD"]
+    name:
+      default: Home Assistant tariff
+      selector:
+        text:
+    utility:
+      example: Octopus Energy
+      selector:
+        text:
+    daily_charge:
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 5
+          step: any
+          mode: box
+    push:
+      default: true
+      selector:
+        boolean:
+    dry_run:
+      default: false
+      selector:
+        boolean:
+
+capture_base_tariff:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: tesla_fleet
+    dry_run:
+      default: false
+      selector:
+        boolean:
+
+sync_events:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: tesla_fleet
+    entity_id:
+      example: event.octopus_energy_<account>_octoplus_power_down_events
+      selector:
+        entity:
+          domain: event
+    events:
+      selector:
+        object:
+    attribute:
+      example: joined_events
+      selector:
+        text:
+    source:
+      selector:
+        text:
+    label:
+      example: Peak
+      selector:
+        select:
+          custom_value: true
+          options: ["Super Off-Peak", "Off-Peak", "Mid-Peak", "Peak"]
+    activate:
+      default: event_day
+      selector:
+        select:
+          options: ["event_day", "now"]
+    relabel:
+      example: '{"Peak": "Mid-Peak"}'
+      selector:
+        object:
+    pre_label:
+      example: Peak
+      selector:
+        select:
+          custom_value: true
+          options: ["Super Off-Peak", "Off-Peak", "Mid-Peak", "Peak"]
+    pre_minutes:
+      selector:
+        number:
+          min: 1
+          max: 720
+          unit_of_measurement: min
+          mode: box
+    buy_price:
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: any
+          mode: box
+    sell_price:
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: any
+          mode: box
+    name:
+      selector:
+        text:
+    dry_run:
+      default: false
+      selector:
+        boolean:
+
+add_event:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: tesla_fleet
+    start:
+      required: true
+      selector:
+        datetime:
+    end:
+      required: true
+      selector:
+        datetime:
+    label:
+      example: Peak
+      selector:
+        select:
+          custom_value: true
+          options: ["Super Off-Peak", "Off-Peak", "Mid-Peak", "Peak"]
+    activate:
+      default: event_day
+      selector:
+        select:
+          options: ["event_day", "now"]
+    relabel:
+      example: '{"Peak": "Mid-Peak"}'
+      selector:
+        object:
+    pre_label:
+      example: Peak
+      selector:
+        select:
+          custom_value: true
+          options: ["Super Off-Peak", "Off-Peak", "Mid-Peak", "Peak"]
+    pre_minutes:
+      selector:
+        number:
+          min: 1
+          max: 720
+          unit_of_measurement: min
+          mode: box
+    buy_price:
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: any
+          mode: box
+    sell_price:
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: any
+          mode: box
+    event_id:
+      selector:
+        text:
+    name:
+      selector:
+        text:
+    source:
+      default: manual
+      selector:
+        text:
+    dry_run:
+      default: false
+      selector:
+        boolean:
+
+remove_event:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: tesla_fleet
+    event_id:
+      required: true
+      selector:
+        text:
+
+clear_events:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: tesla_fleet
+    source:
+      selector:
+        text:
+    force:
+      default: true
+      selector:
+        boolean:
+
+get_status:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: tesla_fleet

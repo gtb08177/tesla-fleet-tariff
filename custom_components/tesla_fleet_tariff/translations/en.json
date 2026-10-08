@@ -1,0 +1,226 @@
+{
+  "services": {
+    "set_base_tariff": {
+      "name": "Set normal rate plan",
+      "description": "Store your normal day-to-day rate plan (what we called BAU) and, by default, push it. This is what the Powerwall returns to whenever no event is active.",
+      "fields": {
+        "device_id": {
+          "name": "Energy site",
+          "description": "The Tesla Fleet Powerwall / energy site device."
+        },
+        "rates": {
+          "name": "Rates",
+          "description": "List of {start, label, buy, sell}. Each applies from its start until the next, wrapping midnight. Labels: Super Off-Peak, Off-Peak, Mid-Peak or Peak. Price per kWh including tax. Each row becomes its own row in the Tesla app."
+        },
+        "tariff": {
+          "name": "Raw tariff",
+          "description": "A full Tesla tariff_content_v2 object, used instead of rates (advanced)."
+        },
+        "currency": {
+          "name": "Currency",
+          "description": "GBP, EUR or USD."
+        },
+        "name": {
+          "name": "Plan name",
+          "description": "Shown in the Tesla app as 'name (Normal)', 'name (Power Down)' and so on."
+        },
+        "utility": {
+          "name": "Utility provider",
+          "description": "Shown as the utility provider in the Tesla app, e.g. Octopus Energy. Defaults to Home Assistant."
+        },
+        "daily_charge": {
+          "name": "Standing charge",
+          "description": "Per day, in the plan's currency."
+        },
+        "push": {
+          "name": "Push now",
+          "description": "Send to the Powerwall now (combined with any active events)."
+        },
+        "dry_run": {
+          "name": "Dry run",
+          "description": "Return the plan without storing or sending it."
+        }
+      }
+    },
+    "capture_base_tariff": {
+      "name": "Capture normal rate plan from Tesla",
+      "description": "Read the rate plan currently set in the Tesla app and store it as your normal plan. Does not push.",
+      "fields": {
+        "device_id": {
+          "name": "Energy site",
+          "description": "The Tesla Fleet Powerwall / energy site device."
+        },
+        "dry_run": {
+          "name": "Dry run",
+          "description": "Return what was read without storing it."
+        }
+      }
+    },
+    "sync_events": {
+      "name": "Sync events",
+      "description": "Make the stored events from one source match a list - from an entity attribute (e.g. the Octopus Energy integration's joined sessions) or given directly (e.g. from a calendar). New events are added, removed ones dropped, past ones ignored. Tesla is only called if the resulting plan changes.",
+      "fields": {
+        "device_id": {
+          "name": "Energy site",
+          "description": "The Tesla Fleet Powerwall / energy site device."
+        },
+        "entity_id": {
+          "name": "Source entity",
+          "description": "Entity with a list attribute of sessions (each with start and end), e.g. event.octopus_energy_<account>_octoplus_power_down_events."
+        },
+        "events": {
+          "name": "Events",
+          "description": "Alternatively, a list of {start, end, id} - e.g. built from calendar.get_events."
+        },
+        "attribute": {
+          "name": "Attribute",
+          "description": "List attribute on the source entity. Defaults to joined_events if present, otherwise events."
+        },
+        "source": {
+          "name": "Source name",
+          "description": "Groups these events; other sources are left alone. Defaults to the entity ID."
+        },
+        "label": {
+          "name": "Use normal-plan label",
+          "description": "Give the window one of your normal plan's labels (Super Off-Peak, Off-Peak, Mid-Peak or Peak), so it takes that label's prices and Tesla app colour. Use instead of prices. E.g. Peak for an export session, Super Off-Peak for a cheap/free session."
+        },
+        "activate": {
+          "name": "When to apply",
+          "description": "event_day (default): put the event into the plan at 00:00 on its own day, or straight away if that's today. now: as soon as it's known."
+        },
+        "relabel": {
+          "name": "Relabel on the event's day",
+          "description": "Map of normal-plan label to label for the rest of the event's day, e.g. {\"Peak\": \"Mid-Peak\"} so the event is the only Peak window that day."
+        },
+        "pre_label": {
+          "name": "Drain beforehand with label",
+          "description": "Label (e.g. Peak) applied immediately before each block of events for the same length of time, so the battery exports first - e.g. before a free-electricity session. Never overlaps an earlier event."
+        },
+        "pre_minutes": {
+          "name": "Drain length",
+          "description": "Fixed drain length in minutes instead of matching each block's length."
+        },
+        "buy_price": {
+          "name": "Import price",
+          "description": "Custom price per kWh for the window instead of a label. Needs a label your normal plan doesn't use, so a new colour may appear in the Tesla app."
+        },
+        "sell_price": {
+          "name": "Export price",
+          "description": "Defaults to the import price. Must not exceed it."
+        },
+        "name": {
+          "name": "Event name",
+          "description": "Shown in notifications and the Tesla plan name, e.g. Power Down."
+        },
+        "dry_run": {
+          "name": "Dry run",
+          "description": "Return the resulting plan without storing or sending anything."
+        }
+      }
+    },
+    "add_event": {
+      "name": "Add event",
+      "description": "Add (or update, by ID) a single window, e.g. a test or a manual override.",
+      "fields": {
+        "device_id": {
+          "name": "Energy site",
+          "description": "The Tesla Fleet Powerwall / energy site device."
+        },
+        "start": {
+          "name": "Start",
+          "description": "When the window starts."
+        },
+        "end": {
+          "name": "End",
+          "description": "When the window ends (max 24h after start)."
+        },
+        "event_id": {
+          "name": "Event ID",
+          "description": "Reusing an ID replaces that event."
+        },
+        "source": {
+          "name": "Source name",
+          "description": "Group name, for clear_events."
+        },
+        "label": {
+          "name": "Use normal-plan label",
+          "description": "Give the window one of your normal plan's labels (Super Off-Peak, Off-Peak, Mid-Peak or Peak), so it takes that label's prices and Tesla app colour. Use instead of prices. E.g. Peak for an export session, Super Off-Peak for a cheap/free session."
+        },
+        "activate": {
+          "name": "When to apply",
+          "description": "event_day (default): put the event into the plan at 00:00 on its own day, or straight away if that's today. now: as soon as it's known."
+        },
+        "relabel": {
+          "name": "Relabel on the event's day",
+          "description": "Map of normal-plan label to label for the rest of the event's day, e.g. {\"Peak\": \"Mid-Peak\"} so the event is the only Peak window that day."
+        },
+        "pre_label": {
+          "name": "Drain beforehand with label",
+          "description": "Label (e.g. Peak) applied immediately before each block of events for the same length of time, so the battery exports first - e.g. before a free-electricity session. Never overlaps an earlier event."
+        },
+        "pre_minutes": {
+          "name": "Drain length",
+          "description": "Fixed drain length in minutes instead of matching each block's length."
+        },
+        "buy_price": {
+          "name": "Import price",
+          "description": "Custom price per kWh for the window instead of a label. Needs a label your normal plan doesn't use, so a new colour may appear in the Tesla app."
+        },
+        "sell_price": {
+          "name": "Export price",
+          "description": "Defaults to the import price. Must not exceed it."
+        },
+        "name": {
+          "name": "Event name",
+          "description": "Shown in notifications and the Tesla plan name, e.g. Power Down."
+        },
+        "dry_run": {
+          "name": "Dry run",
+          "description": "Return the resulting plan without storing or sending anything."
+        }
+      }
+    },
+    "remove_event": {
+      "name": "Remove event",
+      "description": "Remove one event (and its drain window) by ID.",
+      "fields": {
+        "device_id": {
+          "name": "Energy site",
+          "description": "The Tesla Fleet Powerwall / energy site device."
+        },
+        "event_id": {
+          "name": "Event ID",
+          "description": "As shown by get_status."
+        }
+      }
+    },
+    "clear_events": {
+      "name": "Clear events / back to normal",
+      "description": "Remove all events (or those from one source) and push the resulting plan.",
+      "fields": {
+        "device_id": {
+          "name": "Energy site",
+          "description": "The Tesla Fleet Powerwall / energy site device."
+        },
+        "source": {
+          "name": "Source name",
+          "description": "Only clear events from this source."
+        },
+        "force": {
+          "name": "Force push",
+          "description": "Push even if unchanged, e.g. after editing the plan in the Tesla app."
+        }
+      }
+    },
+    "get_status": {
+      "name": "Get status",
+      "description": "Return the normal plan's name, stored events, last push, last error and next scheduled check.",
+      "fields": {
+        "device_id": {
+          "name": "Energy site",
+          "description": "The Tesla Fleet Powerwall / energy site device."
+        }
+      }
+    }
+  }
+}

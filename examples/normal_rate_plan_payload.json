@@ -1,0 +1,240 @@
+{
+  "version": 1,
+  "monthly_minimum_bill": 0,
+  "min_applicable_demand": 0,
+  "max_applicable_demand": 0,
+  "monthly_charges": 0,
+  "utility": "Home Assistant",
+  "code": "HA-DAILY",
+  "name": "Octopus Intelligent Go (Normal)",
+  "currency": "GBP",
+  "daily_charges": [
+    {
+      "name": "Standing charge",
+      "amount": 0.0
+    }
+  ],
+  "daily_demand_charges": {},
+  "demand_charges": {
+    "ALL": {
+      "rates": {
+        "ALL": 0
+      }
+    },
+    "All Year": {
+      "rates": {}
+    }
+  },
+  "energy_charges": {
+    "ALL": {
+      "rates": {
+        "ALL": 0
+      }
+    },
+    "All Year": {
+      "rates": {
+        "PARTIAL_PEAK": 0.35,
+        "ON_PEAK": 0.35,
+        "SUPER_OFF_PEAK": 0.07
+      }
+    }
+  },
+  "seasons": {
+    "All Year": {
+      "fromMonth": 1,
+      "fromDay": 1,
+      "toMonth": 12,
+      "toDay": 31,
+      "tou_periods": {
+        "SUPER_OFF_PEAK": {
+          "periods": [
+            {
+              "fromDayOfWeek": 0,
+              "toDayOfWeek": 6,
+              "fromHour": 23,
+              "fromMinute": 30,
+              "toHour": 5,
+              "toMinute": 30
+            }
+          ]
+        },
+        "PARTIAL_PEAK": {
+          "periods": [
+            {
+              "fromDayOfWeek": 0,
+              "toDayOfWeek": 6,
+              "fromHour": 5,
+              "fromMinute": 30,
+              "toHour": 13,
+              "toMinute": 0
+            },
+            {
+              "fromDayOfWeek": 0,
+              "toDayOfWeek": 6,
+              "fromHour": 13,
+              "fromMinute": 0,
+              "toHour": 15,
+              "toMinute": 0
+            },
+            {
+              "fromDayOfWeek": 0,
+              "toDayOfWeek": 6,
+              "fromHour": 15,
+              "fromMinute": 0,
+              "toHour": 18,
+              "toMinute": 0
+            },
+            {
+              "fromDayOfWeek": 0,
+              "toDayOfWeek": 6,
+              "fromHour": 18,
+              "fromMinute": 0,
+              "toHour": 19,
+              "toMinute": 0
+            },
+            {
+              "fromDayOfWeek": 0,
+              "toDayOfWeek": 6,
+              "fromHour": 19,
+              "fromMinute": 0,
+              "toHour": 20,
+              "toMinute": 30
+            }
+          ]
+        },
+        "ON_PEAK": {
+          "periods": [
+            {
+              "fromDayOfWeek": 0,
+              "toDayOfWeek": 6,
+              "fromHour": 20,
+              "fromMinute": 30,
+              "toHour": 23,
+              "toMinute": 30
+            }
+          ]
+        }
+      }
+    }
+  },
+  "sell_tariff": {
+    "version": 1,
+    "monthly_minimum_bill": 0,
+    "min_applicable_demand": 0,
+    "max_applicable_demand": 0,
+    "monthly_charges": 0,
+    "utility": "Home Assistant",
+    "code": "HA-DAILY",
+    "name": "Octopus Intelligent Go (Normal)",
+    "currency": "GBP",
+    "daily_charges": [
+      {
+        "name": "Charge",
+        "amount": 0
+      }
+    ],
+    "daily_demand_charges": {},
+    "demand_charges": {
+      "ALL": {
+        "rates": {
+          "ALL": 0
+        }
+      },
+      "All Year": {
+        "rates": {}
+      }
+    },
+    "energy_charges": {
+      "ALL": {
+        "rates": {
+          "ALL": 0
+        }
+      },
+      "All Year": {
+        "rates": {
+          "PARTIAL_PEAK": 0.01,
+          "ON_PEAK": 0.12,
+          "SUPER_OFF_PEAK": 0.01
+        }
+      }
+    },
+    "seasons": {
+      "All Year": {
+        "fromMonth": 1,
+        "fromDay": 1,
+        "toMonth": 12,
+        "toDay": 31,
+        "tou_periods": {
+          "SUPER_OFF_PEAK": {
+            "periods": [
+              {
+                "fromDayOfWeek": 0,
+                "toDayOfWeek": 6,
+                "fromHour": 23,
+                "fromMinute": 30,
+                "toHour": 5,
+                "toMinute": 30
+              }
+            ]
+          },
+          "PARTIAL_PEAK": {
+            "periods": [
+              {
+                "fromDayOfWeek": 0,
+                "toDayOfWeek": 6,
+                "fromHour": 5,
+                "fromMinute": 30,
+                "toHour": 13,
+                "toMinute": 0
+              },
+              {
+                "fromDayOfWeek": 0,
+                "toDayOfWeek": 6,
+                "fromHour": 13,
+                "fromMinute": 0,
+                "toHour": 15,
+                "toMinute": 0
+              },
+              {
+                "fromDayOfWeek": 0,
+                "toDayOfWeek": 6,
+                "fromHour": 15,
+                "fromMinute": 0,
+                "toHour": 18,
+                "toMinute": 0
+              },
+              {
+                "fromDayOfWeek": 0,
+                "toDayOfWeek": 6,
+                "fromHour": 18,
+                "fromMinute": 0,
+                "toHour": 19,
+                "toMinute": 0
+              },
+              {
+                "fromDayOfWeek": 0,
+                "toDayOfWeek": 6,
+                "fromHour": 19,
+                "fromMinute": 0,
+                "toHour": 20,
+                "toMinute": 30
+              }
+            ]
+          },
+          "ON_PEAK": {
+            "periods": [
+              {
+                "fromDayOfWeek": 0,
+                "toDayOfWeek": 6,
+                "fromHour": 20,
+                "fromMinute": 30,
+                "toHour": 23,
+                "toMinute": 30
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

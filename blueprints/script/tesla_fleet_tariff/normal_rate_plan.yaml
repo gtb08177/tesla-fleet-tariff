@@ -1,0 +1,113 @@
+blueprint:
+  name: Powerwall - Set normal rate plan
+  description: >-
+    Stores your normal, day-to-day Tesla utility rate plan in the Tesla Fleet
+    Tariff integration and pushes it to the Powerwall (with any active
+    sessions on top). Run it once after installing, and again whenever your
+    rates change.
+
+
+    **Rates** is a list of rows. Each row applies from its `start` until the
+    next row's start, wrapping round midnight. `label` is the Tesla app label
+    (Super Off-Peak, Off-Peak, Mid-Peak, Peak) and sets the colour in the
+    app; `buy` / `sell` are prices per kWh including tax. Rows with the same
+    label must have the same prices. Each row becomes its own row in the
+    Tesla app, so splitting a block (e.g. Mid-Peak 18:00-19:00 and
+    19:00-20:30) gives you separate rows to override by hand.
+  domain: script
+  author: Tesla Fleet Tariff
+  input:
+    powerwall:
+      name: Powerwall / energy site
+      description: The Tesla Fleet device for your Powerwall.
+      selector:
+        device:
+          filter:
+            - integration: tesla_fleet
+    plan_name:
+      name: Plan name
+      description: >-
+        Shown in the Tesla app with what's active added, e.g. "My plan
+        (Normal)", "My plan (Power Down)".
+      default: Home Assistant
+      selector:
+        text:
+    utility:
+      name: Utility provider
+      description: Shown as the utility provider in the Tesla app, e.g. Octopus Energy.
+      default: Home Assistant
+      selector:
+        text:
+    currency:
+      name: Currency
+      default: GBP
+      selector:
+        select:
+          options: ["GBP", "EUR", "USD"]
+    daily_charge:
+      name: Standing charge per day
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 5
+          step: any
+          mode: box
+    rates:
+      name: Rates
+      description: >-
+        List of rows with start, label, buy and sell. The default is an
+        Octopus Intelligent Go-style plan: Mid-Peak (£0.35 buy / £0.01 sell)
+        05:30-20:30 in separate override-ready blocks, Peak (£0.35 / £0.12)
+        20:30-23:30, Super Off-Peak (£0.07 / £0.01) 23:30-05:30. Replace with
+        your own.
+      default:
+        - start: "05:30"
+          label: Mid-Peak
+          buy: 0.35
+          sell: 0.01
+        - start: "13:00"
+          label: Mid-Peak
+          buy: 0.35
+          sell: 0.01
+        - start: "15:00"
+          label: Mid-Peak
+          buy: 0.35
+          sell: 0.01
+        - start: "18:00"
+          label: Mid-Peak
+          buy: 0.35
+          sell: 0.01
+        - start: "19:00"
+          label: Mid-Peak
+          buy: 0.35
+          sell: 0.01
+        - start: "20:30"
+          label: Peak
+          buy: 0.35
+          sell: 0.12
+        - start: "23:30"
+          label: Super Off-Peak
+          buy: 0.07
+          sell: 0.01
+      selector:
+        object:
+
+mode: single
+icon: mdi:cash-clock
+
+sequence:
+  - action: tesla_fleet_tariff.set_base_tariff
+    data:
+      device_id: !input powerwall
+      name: !input plan_name
+      utility: !input utility
+      currency: !input currency
+      daily_charge: !input daily_charge
+      rates: !input rates
+    response_variable: result
+  - action: persistent_notification.create
+    data:
+      title: Powerwall - Rate Plan Changed
+      message: >-
+        Normal rate plan stored. {{ 'Pushed to Tesla.' if result.pushed else 'Tesla already had it.' }}
