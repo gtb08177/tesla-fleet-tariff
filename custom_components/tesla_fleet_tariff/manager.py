@@ -248,12 +248,15 @@ class TariffManager:
         )
         if site_id is None:
             raise ServiceValidationError(f"'{device.name}' is not a Tesla Fleet device")
-        for entry_id in device.config_entries:
-            entry = self.hass.config_entries.async_get_entry(entry_id)
-            if entry is None or entry.domain != TESLA_FLEET_DOMAIN:
-                continue
-            if entry.state is not ConfigEntryState.LOADED:
-                raise HomeAssistantError("The Tesla Fleet integration is not loaded")
+        # Look through the Tesla Fleet entries for the one that owns this site,
+        # rather than reading the device's own entry list: HA is moving that
+        # from DeviceEntry.config_entries to config_entry_id (2027.10), and
+        # this works on old and new versions alike.
+        entries = self.hass.config_entries.async_entries(TESLA_FLEET_DOMAIN)
+        loaded = [e for e in entries if e.state is ConfigEntryState.LOADED]
+        if entries and not loaded:
+            raise HomeAssistantError("The Tesla Fleet integration is not loaded")
+        for entry in loaded:
             data = entry.runtime_data
             for energysite in data.energysites:
                 if str(energysite.id) == site_id:

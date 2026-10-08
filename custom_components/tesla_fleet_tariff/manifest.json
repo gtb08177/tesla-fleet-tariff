@@ -6,5 +6,5 @@
   "documentation": "https://developer.tesla.com/docs/fleet-api/endpoints/energy#time-of-use-settings",
   "iot_class": "cloud_polling",
   "requirements": [],
-  "version": "0.1.0"
+  "version": "0.1.1"
 }
