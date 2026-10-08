@@ -31,9 +31,10 @@ blueprint:
     * Optionally relabel the rest of the session's day (e.g. Peak → Mid-Peak)
     so the session is the only Peak window.
 
-    * Optionally drain beforehand: the same length of time right before each
-    block of sessions takes another label (usually Peak), so the battery
-    exports first and refills during a free session.
+    * Optionally drain beforehand: a window right before each block of
+    sessions takes another label (usually Peak), so the battery exports
+    first and refills during a free session. By default it's as long as the
+    block; set a drain length for a fixed one.
 
     * When the day's last session ends, the normal plan comes back. Removed
     sessions drop out on the next check. Tesla is only called when the plan
@@ -97,15 +98,29 @@ blueprint:
     pre_label:
       name: Drain beforehand with label (optional)
       description: >-
-        For cheap/free sessions: a label (usually Peak) applied for the same
-        length of time immediately before each block of sessions, so the
-        battery exports first and refills during the session. Leave empty
-        for export sessions.
+        For cheap/free sessions: a label (usually Peak) applied immediately
+        before each block of sessions, so the battery exports first and
+        refills during the session. Leave empty for export sessions.
       default: ""
       selector:
         select:
           custom_value: true
           options: ["", "Peak", "Mid-Peak", "Off-Peak", "Super Off-Peak"]
+    pre_minutes:
+      name: Drain length (optional)
+      description: >-
+        How long the drain lasts before each block of sessions. 0 (the
+        default) matches the block's own length, e.g. a 2-hour session gets
+        a 2-hour drain. Any other value is a fixed length, e.g. 90. A drain
+        never overlaps an earlier session. Only used with a drain label.
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 720
+          step: 15
+          unit_of_measurement: min
+          mode: box
     activate:
       name: When to apply sessions on a later day
       default: event_day
@@ -131,6 +146,25 @@ max: 5
 variables:
   source_entity: !input session_entity
   is_calendar: "{{ source_entity.startswith('calendar.') }}"
+  powerwall_id: !input powerwall
+  list_attribute: !input attribute
+  window_label: !input label
+  day_relabel: !input relabel
+  drain_label: !input pre_label
+  drain_minutes: !input pre_minutes
+  activate_when: !input activate
+  name_for_session: !input session_name
+  # Options shared by both sources. A drain length is only sent when one is
+  # set (0 = match each block's length).
+  session_options: >-
+    {% set opts = dict(device_id=powerwall_id, label=window_label,
+                       relabel=day_relabel, pre_label=drain_label,
+                       activate=activate_when, name=name_for_session) %}
+    {% if drain_label and (drain_minutes | int(0)) > 0 %}
+      {{ dict(opts, pre_minutes=drain_minutes | int) }}
+    {% else %}
+      {{ opts }}
+    {% endif %}
 
 triggers:
   - trigger: state
@@ -156,26 +190,13 @@ actions:
             days: 8
         response_variable: calendar_events
       - action: tesla_fleet_tariff.sync_events
-        data:
-          device_id: !input powerwall
-          source: "{{ source_entity }}"
-          # Timed events only (all-day calendar entries are ignored).
-          events: >-
-            {{ calendar_events[source_entity].events
-               | selectattr('start', 'search', 'T') | list }}
-          label: !input label
-          relabel: !input relabel
-          pre_label: !input pre_label
-          activate: !input activate
-          name: !input session_name
+        # Timed events only (all-day calendar entries are ignored).
+        data: >-
+          {{ dict(session_options, source=source_entity,
+                  events=calendar_events[source_entity].events
+                         | selectattr('start', 'search', 'T') | list) }}
     else:
       - action: tesla_fleet_tariff.sync_events
-        data:
-          device_id: !input powerwall
-          entity_id: !input session_entity
-          attribute: !input attribute
-          label: !input label
-          relabel: !input relabel
-          pre_label: !input pre_label
-          activate: !input activate
-          name: !input session_name
+        data: >-
+          {{ dict(session_options, entity_id=source_entity,
+                  attribute=list_attribute) }}

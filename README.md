@@ -25,6 +25,8 @@ sign-in) and Tesla's `time_of_use_settings` API.
   * 13:00–15:00 drains 11:00–13:00.
   * 11:00–12:00 plus 13:00–14:00 drains 10:00–11:00 and 12:00–13:00.
   * A drain never overlaps an earlier session.
+  * Set a **drain length** (e.g. 90 minutes) for a fixed length instead; 0
+    (the default) matches each block's length.
 * **Timing:**
   * A session for today goes into the plan straight away.
   * A session for a later day goes in at 00:00 that day, or as soon as it's

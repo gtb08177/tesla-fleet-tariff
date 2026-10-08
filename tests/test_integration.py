@@ -473,6 +473,29 @@ async def test_follow_sessions_blueprint(hass, site, bp_config, freezer):
     assert pushes(site) == before + 2 and price(last(site), at(WED, "14:00")) == SOP
 
 
+@pytest.mark.parametrize(("minutes", "drain_from"), [(0, "11:00"), (60, "12:00"), (90, "11:30")])
+async def test_follow_sessions_blueprint_drain_length(hass, site, bp_config, freezer,
+                                                      minutes, drain_from):
+    freezer.move_to(at(WED, "08:00"))
+    octopus(hass, UP, attr="events")
+    assert await async_setup_component(hass, "automation", {"automation": [
+        {"id": "pu", "use_blueprint": {
+            "path": "tesla_fleet_tariff/follow_demand_sessions.yaml", "input": {
+                "powerwall": site.device_id, "session_entity": UP,
+                "attribute": "events", "label": "Super Off-Peak",
+                "pre_label": "Peak", "pre_minutes": minutes,
+                "session_name": "Power Up"}}}]})
+    await hass.async_block_till_done()
+    octopus(hass, UP, (9, at(WED, "13:00"), at(WED, "15:00")), attr="events")
+    await hass.async_block_till_done()
+    t = last(site)
+    start = datetime.strptime(drain_from, "%H:%M")
+    before_drain = (start - timedelta(minutes=15)).strftime("%H:%M")
+    assert price(t, at(WED, before_drain)) == MID
+    assert price(t, at(WED, drain_from)) == PEAK and price(t, at(WED, "12:45")) == PEAK
+    assert price(t, at(WED, "13:30")) == SOP and price(t, at(WED, "14:45")) == SOP
+
+
 async def test_notify_blueprint(hass, site, bp_config):
     calls = []
     hass.services.async_register("notify", "phone", lambda call: calls.append(call.data))
