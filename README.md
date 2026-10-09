@@ -13,18 +13,17 @@ sign-in) and Tesla's `time_of_use_settings` API.
 
 * **Normal plan:** your everyday rate plan, stored once in HA.
 * **Sessions (events):** time windows such as "Thu 18:00–19:00". A session
-  normally **reuses one of your normal plan's labels**, e.g. `Peak` for an
-  export session, `Super Off-Peak` for a cheap/free session. It then takes
-  that label's prices and the Tesla app keeps its colours.
-* **Relabel (optional):** e.g. Peak → Mid-Peak for the rest of the session's
-  day, so the session is the only Peak window.
-* **Drain (optional, for cheap/free sessions):** a window right before each
-  block of sessions gets another label (usually Peak), so the battery exports
-  first and refills during the session.
-  * **Drain length** in the blueprint:
-    * **Blank (default):** the same length as the block.
-    * **A number:** that many minutes, e.g. 90.
-    * **0:** no drain.
+  either **reuses one of your normal plan's labels** (e.g. `Peak` for an
+  export session, taking that label's prices and colour) or has **its own
+  prices** (e.g. £0 for free electricity, which gets a label your plan
+  doesn't use).
+* **Only export window (optional):** e.g. Peak → Mid-Peak for the rest of
+  the session's day, so the session is the only Peak window.
+* **Empty the battery first (optional, for free sessions):** a window right
+  before each block of sessions is Peak, so the battery exports first and
+  refills during the session.
+  * **Length:** blank (default) = the same length as the block, or a
+    number of minutes.
   * With the length left blank:
     * One hour at 13:00 drains 12:00–13:00.
     * 13:00–15:00 drains 11:00–13:00.
@@ -36,8 +35,12 @@ sign-in) and Tesla's `time_of_use_settings` API.
   * A session for a later day goes in at 00:00 that day, or as soon as it's
     known with `activate: now`.
   * Once the **last** session of the day ends, the normal plan is pushed back.
-  * Windows that have already passed are never removed on their own, because
-    that would waste a Tesla plan change.
+* **The past is frozen:** a window that has already ended (a drain, or the
+  first of two back-to-back sessions) stays in the plan until the day's last
+  session ends, whatever the session list says. Re-checks therefore never
+  push just because time moved on. Changes to current or future sessions
+  still push: a session joined later that day, or one pulled before it
+  starts, during its drain or while it's running.
 * **Only when needed:** the plan sent to Tesla is recalculated whenever
   something changes, but **only sent when it's different**. Re-checking a
   session list every few minutes costs nothing.
@@ -114,12 +117,25 @@ plus `first_test.yaml` for a step-by-step first test.
   by hand. All-day entries are ignored. Calendars are checked every 15 minutes
   for new or removed events.
 
-**Typical settings:**
+**Settings** (in sections, most people only need the first three):
 
-| Session type | Label | Relabel | Drain with | Drain length |
-|---|---|---|---|---|
-| Export / saving (e.g. Octopus Power Down) | Peak | `{"Peak": "Mid-Peak"}` | (empty) | (not used) |
-| Cheap / free (e.g. Octopus Power Up) | Super Off-Peak | `{}` | Peak | blank = same as the session; a number of minutes; 0 = none |
+| Section | Setting | What it does |
+|---|---|---|
+| Sessions | Where the sessions come from, Name | The entity or calendar, and the name shown in notifications and the Tesla app |
+| During a session | **Session type** | *Export* (e.g. Power Down): the session is Peak. *Free electricity* (e.g. Power Up): the session is £0 to buy and sell |
+| | **Make it the only export window that day** (on) | Your normal Peak becomes Mid-Peak on the session's day |
+| Before a free session | **Empty the battery first** (on), **For how long** (blank = same as the session) | A Peak window just before the session |
+| Advanced | Which list to read (automatic), when later days go in, a label instead of the session type, the drain label, a custom relabel map | Rarely needed. Filled-in advanced fields win over the simple ones |
+
+For free sessions to show as **Super Off-Peak** in the Tesla app, don't use
+Super Off-Peak in your normal plan (e.g. call your overnight rate Off-Peak).
+Otherwise the free window shows under whichever label is spare.
+
+Automations made with the 0.1 blueprint keep working: their `label`,
+`relabel`, `pre_label` and `pre_minutes` settings are now the advanced fields.
+One difference: an empty `relabel` used to mean "no change" and now means
+"use the switch", which is on by default. To keep every Peak window on
+session days, turn **Make it the only export window that day** off.
 
 ## Notifications
 
@@ -152,7 +168,7 @@ retried every 5 minutes and shown by `get_status` as `last_error`.
 |---|---|
 | `set_base_tariff` | Store the normal plan from `rates` (or a raw `tariff`) and push it, with any live sessions on top |
 | `capture_base_tariff` | Read the plan currently in the Tesla app and store it as the normal plan |
-| `sync_events` | Make one source's sessions match an entity's list attribute, or an `events` list (e.g. from `calendar.get_events`). Handles new, changed and removed sessions, and ignores past ones. Keeps what it has if the entity is unavailable |
+| `sync_events` | Make one source's sessions match an entity's list attribute, or an `events` list (e.g. from `calendar.get_events`). Handles new, changed and removed sessions. Windows that have already ended are left as they are. Keeps what it has if the entity is unavailable |
 | `add_event` / `remove_event` | Add or remove a single window, e.g. a test or a manual override. Removing also removes its drain |
 | `clear_events` | Drop all sessions (or one source's) and force a push of the normal plan |
 | `get_status` | Plan name, sessions (whether each is in the plan or running), last push, last error and next check |
@@ -160,7 +176,7 @@ retried every 5 minutes and shown by `get_status` as `last_error`.
 Session options for `sync_events` and `add_event`:
 * `label` (one of your normal plan's labels) or `buy_price` / `sell_price`
   (export defaults to the import price, because Tesla requires import ≥ export)
-* `relabel`, `pre_label`, `pre_minutes` and `activate`
+* `relabel`, `pre_label`, `pre_minutes` (1–720; leave out for the same length as the block) and `activate`
 * `name`, which appears in notifications and the plan name
 
 Every action that builds a plan accepts `dry_run: true`, and returns the plan
@@ -179,10 +195,13 @@ actions don't accept.
   prices. The Powerwall needs operation mode `autonomous` and export set to
   allow the battery. Anything that switches it to backup mode during a session
   stops the export (see the forced-charging blueprint).
-* **Free sessions aren't priced at £0** when they reuse a label, so the
-  Powerwall sees your Super Off-Peak price. Use `buy_price: 0` instead to show
-  them as free. That needs a label your plan doesn't use, so a new colour
-  appears in the app.
+* **Free sessions and labels:** a £0 session needs a label your normal plan
+  doesn't use. The blueprint's *Free electricity* type does this for you; if
+  you reuse a label instead (e.g. `label: Super Off-Peak`), the Powerwall sees
+  that label's normal price rather than £0.
+* **Export prices:** Time-Based Control exports when export pays. If you're
+  paid the same at all times but want to choose when it exports, set export
+  to £0 everywhere except the windows you want (e.g. Peak).
 * **Export capped at import:** if a slot's export price is higher than its
   import price, export is capped at the import price. Otherwise Tesla would
   raise the import price to match.

@@ -1,144 +1,161 @@
 blueprint:
   name: Powerwall - Follow demand sessions
   description: >-
-    Keeps the Powerwall's utility rate plan in step with a list of demand
-    sessions from your supplier - e.g. Octopus Energy Power Down (saving)
-    or Power Up (free electricity) sessions - using the Tesla Fleet Tariff
-    integration.
+    Changes your Powerwall's rate plan for your supplier's demand sessions,
+    such as Octopus Power Down (paid to export) or Power Up (free
+    electricity), and puts your normal plan back when the day's last session
+    ends.
 
 
-    **Session source** can be either:
+    * **Export sessions** become Peak, so the Powerwall exports during them.
 
-    * an entity with a list of sessions in an attribute - e.g. the Octopus
-    Energy integration's `event.octopus_energy_<account>_octoplus_power_down_events`
-    (attribute `joined_events`) or `..._power_up_events` (attribute `events`); or
+    * **Free sessions** are priced at £0, so the Powerwall charges. It can
+    empty the battery first, so there's room to refill.
 
-    * any **calendar** - e.g. the Octopus Energy integration's
-    `calendar.octopus_energy_<account>_octoplus_power_down`, another
-    supplier's calendar, or a Local Calendar you add events to by hand.
+    * Sessions for today go in straight away; later days go in at midnight.
+    Tesla is only updated when the plan actually changes.
 
 
-    What it does:
-
-    * A session for **today** goes into the plan straight away; one for a
-    later day is held and goes in at 00:00 that day (or as soon as it's
-    known, if you choose that).
-
-    * The session window takes one of your normal plan's labels - e.g.
-    **Peak** for an export session, **Super Off-Peak** for a cheap/free
-    session - so its prices and Tesla app colour come from your normal plan.
-
-    * Optionally relabel the rest of the session's day (e.g. Peak → Mid-Peak)
-    so the session is the only Peak window.
-
-    * Optionally drain beforehand: a window right before each block of
-    sessions takes another label (usually Peak), so the battery exports
-    first and refills during a free session. Drain length: blank = as long
-    as the block, a number = that many minutes, 0 = no drain.
-
-    * When the day's last session ends, the normal plan comes back. Removed
-    sessions drop out on the next check. Tesla is only called when the plan
-    actually changes.
-
-
-    Create one automation per session type. Run the "Set normal rate plan"
-    script first.
+    Create one automation per session type, and run the "Powerwall - Set
+    normal rate plan" script first. Uses the Tesla Fleet Tariff integration.
   domain: automation
   author: Tesla Fleet Tariff
   input:
-    powerwall:
-      name: Powerwall / energy site
-      selector:
-        device:
-          filter:
-            - integration: tesla_fleet
-    session_entity:
-      name: Session source
-      description: >-
-        An entity with a list attribute of sessions, or a calendar. E.g.
-        event.octopus_energy_<account>_octoplus_power_down_events or
-        calendar.octopus_energy_<account>_octoplus_power_down.
-      selector:
-        entity:
-          filter:
-            - domain: event
-            - domain: calendar
-    attribute:
-      name: Session list attribute (list sources only)
-      description: >-
-        Which attribute holds the list. For Octopus Energy: joined_events for
-        Power Down (only sessions you've joined), events for Power Up.
-        Ignored for calendars.
-      default: joined_events
-      selector:
-        select:
-          custom_value: true
-          options:
-            - joined_events
-            - events
-    label:
-      name: Label for the session window
-      description: >-
-        One of your normal plan's labels. Peak for an export session (e.g.
-        Power Down), Super Off-Peak for a cheap/free session (e.g. Power Up).
-      default: Peak
-      selector:
-        select:
-          custom_value: true
-          options: ["Peak", "Mid-Peak", "Off-Peak", "Super Off-Peak"]
-    relabel:
-      name: Relabel the rest of the session's day
-      description: >-
-        Map of label to label for the rest of the session's day, e.g.
-        {"Peak": "Mid-Peak"} so the session is the only Peak that day.
-        Use {} for no change.
-      default: {}
-      selector:
-        object:
-    pre_label:
-      name: Drain beforehand with label (optional)
-      description: >-
-        For cheap/free sessions: a label (usually Peak) applied immediately
-        before each block of sessions, so the battery exports first and
-        refills during the session. Leave empty for export sessions.
-      default: ""
-      selector:
-        select:
-          custom_value: true
-          options: ["", "Peak", "Mid-Peak", "Off-Peak", "Super Off-Peak"]
-    pre_minutes:
-      name: Drain length (optional)
-      description: >-
-        Leave blank to match each block of sessions' own length (a 2-hour
-        session gets a 2-hour drain). Enter a number for a fixed length in
-        minutes, e.g. 90; 0 means no drain. A drain never overlaps an earlier
-        session. Only used with a drain label.
-      default:
-      selector:
-        number:
-          min: 0
-          max: 720
-          step: 15
-          unit_of_measurement: min
-          mode: box
-    activate:
-      name: When to apply sessions on a later day
-      default: event_day
-      selector:
-        select:
-          options:
-            - label: At 00:00 on the session's day
-              value: event_day
-            - label: As soon as it is known
-              value: now
-    session_name:
-      name: Session name
-      description: >-
-        Shown in notifications and the Tesla plan name, e.g. Power Down or
-        Power Up.
-      default: Session
-      selector:
-        text:
+    sessions:
+      name: Sessions
+      icon: mdi:calendar-clock
+      input:
+        powerwall:
+          name: Powerwall
+          selector:
+            device:
+              filter:
+                - integration: tesla_fleet
+        session_entity:
+          name: Where the sessions come from
+          description: >-
+            The Octopus Energy integration's Power Down or Power Up events
+            entity, or any calendar (e.g. a Local Calendar you add sessions
+            to yourself).
+          selector:
+            entity:
+              filter:
+                - domain: event
+                - domain: calendar
+        session_name:
+          name: Name
+          description: Shown in notifications and the Tesla app, e.g. Power Down.
+          default: Session
+          selector:
+            text:
+    during:
+      name: During a session
+      icon: mdi:home-battery
+      input:
+        session_type:
+          name: Session type
+          default: export
+          selector:
+            select:
+              options:
+                - label: "Export: I'm paid to export (e.g. Power Down)"
+                  value: export
+                - label: "Free electricity (e.g. Power Up)"
+                  value: free
+        only_export_window:
+          name: Make it the only export window that day
+          description: >-
+            On the session's day your normal Peak becomes Mid-Peak, so the
+            session (or, for a free session, the window that empties the
+            battery first) is the only time the Powerwall is paid to export.
+          default: true
+          selector:
+            boolean:
+    before:
+      name: Before a free session
+      icon: mdi:battery-arrow-down
+      input:
+        empty_first:
+          name: Empty the battery first
+          description: >-
+            Exports just before the session, so there's room to refill for
+            free. Back-to-back sessions count as one.
+          default: true
+          selector:
+            boolean:
+        pre_minutes:
+          name: For how long
+          description: Leave blank for the same length as the session.
+          default:
+          selector:
+            number:
+              min: 15
+              max: 720
+              step: 15
+              unit_of_measurement: min
+              mode: box
+    advanced:
+      name: Advanced
+      icon: mdi:tune
+      collapsed: true
+      input:
+        attribute:
+          name: Which list to read
+          description: >-
+            Entity sources only. Automatic reads joined_events if the entity
+            has it (Octopus Power Down: only sessions you've joined), otherwise
+            events (Octopus Power Up).
+          default: auto
+          selector:
+            select:
+              custom_value: true
+              options:
+                - label: Automatic
+                  value: auto
+                - label: joined_events
+                  value: joined_events
+                - label: events
+                  value: events
+        activate:
+          name: Sessions on a later day go into the plan
+          default: event_day
+          selector:
+            select:
+              options:
+                - label: At midnight on the session's day
+                  value: event_day
+                - label: As soon as they're known
+                  value: now
+        label:
+          name: Session label instead of the session type
+          description: >-
+            Use one of your normal plan's labels (and its prices) for the
+            session instead: Peak for export, £0 for free. Blank = use the
+            session type.
+          default: ""
+          selector:
+            select:
+              custom_value: true
+              options: ["", "Peak", "Mid-Peak", "Off-Peak", "Super Off-Peak"]
+        pre_label:
+          name: Label for emptying the battery
+          description: >-
+            Blank = Peak. Setting a label here also empties the battery
+            before export-type sessions.
+          default: ""
+          selector:
+            select:
+              custom_value: true
+              options: ["", "Peak", "Mid-Peak", "Off-Peak", "Super Off-Peak"]
+        relabel:
+          name: Custom relabel for the session's day
+          description: >-
+            Replaces "Make it the only export window" with your own label
+            changes, e.g. {"Peak": "Mid-Peak", "Mid-Peak": "Off-Peak"}.
+            Leave empty to use the switch.
+          default: {}
+          selector:
+            object:
 
 mode: queued
 max: 5
@@ -147,33 +164,52 @@ variables:
   source_entity: !input session_entity
   is_calendar: "{{ source_entity.startswith('calendar.') }}"
   powerwall_id: !input powerwall
-  list_attribute: !input attribute
-  window_label: !input label
-  day_relabel: !input relabel
-  drain_label: !input pre_label
-  drain_minutes: !input pre_minutes
-  activate_when: !input activate
   name_for_session: !input session_name
-  # Options shared by both sources. Drain length: blank = match each
-  # block's length (not sent), a number = that many minutes, 0 = no drain.
+  session_type: !input session_type
+  only_export_window: !input only_export_window
+  empty_first: !input empty_first
+  drain_minutes: !input pre_minutes
+  list_attribute: !input attribute
+  activate_when: !input activate
+  label_override: !input label
+  drain_label_override: !input pre_label
+  relabel_override: !input relabel
+  # What gets sent to tesla_fleet_tariff.sync_events, built from the answers
+  # above. The advanced fields, when filled in, win over the simple ones.
   session_options: >-
-    {% set opts = dict(device_id=powerwall_id, label=window_label,
-                       relabel=day_relabel, pre_label=drain_label,
-                       activate=activate_when, name=name_for_session) %}
-    {% if not drain_label or drain_minutes is none or drain_minutes == '' %}
-      {{ opts }}
-    {% elif (drain_minutes | int(0)) > 0 %}
-      {{ dict(opts, pre_minutes=drain_minutes | int) }}
+    {% set is_free = session_type == 'free' %}
+    {% set opts = dict(device_id=powerwall_id, activate=activate_when,
+                       name=name_for_session) %}
+    {% if label_override %}
+      {% set opts = dict(opts, label=label_override) %}
+    {% elif is_free %}
+      {% set opts = dict(opts, buy_price=0) %}
     {% else %}
-      {{ dict(opts, pre_label='') }}
+      {% set opts = dict(opts, label='Peak') %}
     {% endif %}
+    {% if relabel_override %}
+      {% set opts = dict(opts, relabel=relabel_override) %}
+    {% elif only_export_window %}
+      {% set opts = dict(opts, relabel={'Peak': 'Mid-Peak'}) %}
+    {% endif %}
+    {% set drain_label = drain_label_override
+         or ('Peak' if is_free and empty_first else '') %}
+    {% if drain_label %}
+      {% if drain_minutes is none or drain_minutes == '' %}
+        {% set opts = dict(opts, pre_label=drain_label) %}
+      {% elif (drain_minutes | int(0)) > 0 %}
+        {% set opts = dict(opts, pre_label=drain_label,
+                           pre_minutes=drain_minutes | int) %}
+      {% endif %}
+    {% endif %}
+    {{ opts }}
 
 triggers:
   - trigger: state
     entity_id: !input session_entity
   - trigger: homeassistant
     event: start
-  # Calendars don't announce newly added events, so check regularly. This is
+  # Calendars don't announce new events, so check every 15 minutes. This is
   # cheap: Tesla is only called when the plan actually changes.
   - trigger: time_pattern
     minutes: /15
@@ -200,5 +236,8 @@ actions:
     else:
       - action: tesla_fleet_tariff.sync_events
         data: >-
-          {{ dict(session_options, entity_id=source_entity,
-                  attribute=list_attribute) }}
+          {% if list_attribute in (none, '', 'auto') %}
+            {{ dict(session_options, entity_id=source_entity) }}
+          {% else %}
+            {{ dict(session_options, entity_id=source_entity, attribute=list_attribute) }}
+          {% endif %}

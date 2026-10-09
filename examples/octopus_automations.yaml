@@ -9,11 +9,12 @@
 # Behaviour:
 #  * Session joined for TODAY -> plan updated straight away; for a later
 #    day -> held, pushed at 00:00 that day.
-#  * Power Down day: 23:30-05:30 Super Off-Peak, the session window Peak
+#  * Power Down day: 23:30-05:30 Off-Peak, the session window Peak
 #    (export lever: sell £0.12), everything else Mid-Peak - the usual
 #    20:30-23:30 Peak is flipped to Mid-Peak so the Powerwall spends its
 #    charge in the session, not later that evening.
-#  * Power Up day: the session window is Super Off-Peak and the same length
+#  * Power Up day: the session window is free (£0 to buy; shown as Super
+#    Off-Peak because the normal plan doesn't use it), and the same length
 #    of time right before each block of sessions is Peak, so the battery
 #    exports first and refills for free.
 #  * The normal plan is pushed once the day's last session ends. Removed
@@ -58,11 +59,14 @@
         entity_id: event.octopus_energy_a_bc039fe4_octoplus_power_up_events
         name: Power Up
         attribute: events
-        label: Super Off-Peak  # the free window: charge
+        buy_price: 0           # the free window: charge (export defaults to £0 too)
+        relabel: { Peak: Mid-Peak }  # the drain is that day's only Peak
         pre_label: Peak        # drain beforehand: export for the same length of
                                # time right before each block of sessions
         # pre_minutes: 90      # optional fixed drain length in minutes (leave
                                # out to match the session; drop pre_label for none)
+        # The past is frozen: windows that have already ended stay in the plan
+        # until the day's last session ends, so re-checks never push.
 
 - id: tesla_tariff_pushed_notify
   alias: Powerwall - Notify when the rate plan changes

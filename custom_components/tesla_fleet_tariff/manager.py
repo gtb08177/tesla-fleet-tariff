@@ -511,12 +511,25 @@ class TariffManager:
     async def async_sync(
         self, device_id: str, source: str, events: list[Event]
     ) -> dict[str, Any]:
-        """Replace all events from ``source`` (so cancellations drop out)."""
+        """Replace all events from ``source`` (so cancellations drop out).
+
+        The past is frozen: windows from ``source`` that have already ended
+        are kept as they are, whatever the source now says. They can't change
+        anything, so dropping them would only spend a Tesla plan change (e.g.
+        the drain ending as its session starts). They leave with the rest of
+        the day's windows once nothing is live. Current and future windows are
+        replaced, so a session pulled before it starts, during its drain or
+        while running still pushes.
+        """
         site_id, _ = self.resolve(device_id)
         now = dt_util.utcnow()
         wanted = {e.id: asdict(e) for e in events if e.end_dt > now}
         state = self.site(site_id)
-        kept = {k: v for k, v in state.events.items() if v["source"] != source}
+        kept = {
+            k: v
+            for k, v in state.events.items()
+            if v["source"] != source or (k not in wanted and Event(**v).end_dt <= now)
+        }
         if state.base is not None:
             # Validate against the other sources only, so a changed/cancelled
             # event from this source can't block the sync.

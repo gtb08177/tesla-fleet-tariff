@@ -6,16 +6,13 @@
 #     (the UI wants alias/sequence at the top level - no script name key).
 #
 # Mid-Peak 05:30-13:00, 13:00-15:00, 15:00-18:00, 18:00-19:00, 19:00-20:30
-# Peak 20:30-23:30, Super Off-Peak 23:30-05:30.
+# Peak 20:30-23:30, Off-Peak 23:30-05:30.
+# Export pays £0 except in Peak, so the Powerwall only exports when you
+# choose (Peak, or a session). Overnight is Off-Peak so Super Off-Peak is free
+# for £0 Power Up sessions.
 # Each block is its own row in the Tesla app, ready for manual overrides if
 # the automation ever fails. The Tesla app shows the plan as
 # "Octopus Intelligent Go (Normal)", "... (Power Down)" and so on.
-alias: ...
-#
-# Mid-Peak 05:30-13:00, 13:00-15:00, 15:00-18:00, 18:00-19:00, 19:00-20:30
-# Peak 20:30-23:30, Super Off-Peak 23:30-05:30.
-# Each block is sent to Tesla as its own period (separate rows in the app,
-# ready for manual overrides if the automation ever fails).
 alias: Powerwall - Set normal rate plan
 icon: mdi:cash-clock
 mode: single
@@ -30,31 +27,31 @@ sequence:
         - start: "05:30"
           label: Mid-Peak
           buy: 0.35
-          sell: 0.01
+          sell: 0.00
         - start: "13:00"
           label: Mid-Peak
           buy: 0.35
-          sell: 0.01
+          sell: 0.00
         - start: "15:00"
           label: Mid-Peak
           buy: 0.35
-          sell: 0.01
+          sell: 0.00
         - start: "18:00"
           label: Mid-Peak
           buy: 0.35
-          sell: 0.01
+          sell: 0.00
         - start: "19:00"
           label: Mid-Peak
           buy: 0.35
-          sell: 0.01
+          sell: 0.00
         - start: "20:30"
           label: Peak
           buy: 0.35
           sell: 0.12
         - start: "23:30"
-          label: Super Off-Peak
+          label: Off-Peak        # overnight; keeps Super Off-Peak free for £0 sessions
           buy: 0.07
-          sell: 0.01
+          sell: 0.00
     response_variable: result
   - action: persistent_notification.create
     data:

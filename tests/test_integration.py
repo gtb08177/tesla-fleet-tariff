@@ -896,3 +896,180 @@ async def test_resolve_errors(hass, site):
     site.entry.mock_state(hass, ConfigEntryState.NOT_LOADED)
     with pytest.raises(HomeAssistantError, match="not loaded"):
         await site.call("get_status")
+
+
+# --------------------------------------------------------------------------- #
+# The past is frozen: a re-check never removes a window that has ended
+# (9 Oct: the 14:00 check dropped the ended drain and pushed a new plan)
+# --------------------------------------------------------------------------- #
+async def test_recheck_as_drain_ends_does_not_push(hass, site, freezer):
+    freezer.move_to(at(WED, "12:30"))
+    octopus(hass, UP, (1, at(WED, "14:00"), at(WED, "15:00")), attr="events")
+    await sync_up_drain(site, relabel={"Peak": "Mid-Peak"})
+    n, plan = pushes(site), last(site)
+    assert price(plan, at(WED, "13:30")) == PEAK and price(plan, at(WED, "14:30")) == SOP
+    freezer.move_to(at(WED, "14:00"))  # 15-minute check lands on the drain's end
+    await sync_up_drain(site, relabel={"Peak": "Mid-Peak"})
+    await tick(hass, freezer, at(WED, "14:00") + timedelta(seconds=30))
+    await sync_up_drain(site, relabel={"Peak": "Mid-Peak"})
+    assert pushes(site) == n
+    await tick(hass, freezer, at(WED, "15:00") + timedelta(seconds=2))
+    assert pushes(site) == n + 1 and last(site) == site.base
+
+
+async def test_recheck_between_back_to_back_sessions_does_not_push(hass, site, freezer):
+    freezer.move_to(at(WED, "08:00"))
+    octopus(hass, UP, (1, at(WED, "11:00"), at(WED, "12:00")),
+            (2, at(WED, "12:00"), at(WED, "13:00")), attr="events")
+    await sync_up_drain(site)
+    n = pushes(site)
+    for when in ("11:00", "12:00", "12:15"):
+        await tick(hass, freezer, at(WED, when) + timedelta(seconds=5))
+        await sync_up_drain(site)
+    assert pushes(site) == n
+    await tick(hass, freezer, at(WED, "13:00") + timedelta(seconds=2))
+    assert last(site) == site.base
+
+
+@pytest.mark.parametrize("pulled_at", ["11:30", "13:30", "14:30"])
+async def test_pulled_session_still_pushes(hass, site, freezer, pulled_at):
+    """Pulled before the drain, during the drain, or while running."""
+    freezer.move_to(at(WED, "08:00"))
+    octopus(hass, UP, (1, at(WED, "14:00"), at(WED, "15:00")), attr="events")
+    await sync_up_drain(site)
+    n = pushes(site)
+    await tick(hass, freezer, at(WED, pulled_at))
+    octopus(hass, UP, attr="events")  # Octopus drops the session
+    await sync_up_drain(site)
+    assert pushes(site) == n + 1 and last(site) == site.base
+
+
+async def test_session_joined_later_the_same_day_still_pushes(hass, site, freezer):
+    freezer.move_to(at(WED, "08:00"))
+    octopus(hass, UP, (1, at(WED, "11:00"), at(WED, "12:00")), attr="events")
+    await sync_up_drain(site)
+    n = pushes(site)
+    await tick(hass, freezer, at(WED, "11:30"))  # first session running
+    octopus(hass, UP, (1, at(WED, "11:00"), at(WED, "12:00")),
+            (2, at(WED, "16:00"), at(WED, "17:00")), attr="events")
+    await sync_up_drain(site)
+    assert pushes(site) == n + 1
+    t = last(site)
+    assert price(t, at(WED, "15:30")) == PEAK and price(t, at(WED, "16:30")) == SOP
+
+
+async def test_ended_windows_are_forgotten_once_the_day_is_done(hass, site, freezer):
+    freezer.move_to(at(WED, "12:30"))
+    octopus(hass, UP, (1, at(WED, "14:00"), at(WED, "15:00")), attr="events")
+    await sync_up_drain(site)
+    await tick(hass, freezer, at(WED, "14:10"))
+    await sync_up_drain(site)
+    await tick(hass, freezer, at(WED, "15:00") + timedelta(seconds=2))
+    await sync_up_drain(site)
+    state = next(iter(hass.data[DOMAIN].sites.values()))
+    assert state.events == {} and last(site) == site.base
+
+
+# --------------------------------------------------------------------------- #
+# Follow demand sessions: the plain-language inputs (0.2.0)
+# --------------------------------------------------------------------------- #
+FOLLOW = "tesla_fleet_tariff/follow_demand_sessions.yaml"
+# Ryan's plan with the overnight row moved to Off-Peak and £0 export outside Peak,
+# so Super Off-Peak is free for £0 sessions.
+SWAPPED = [{**r, "sell": 0.0 if r["label"] != "Peak" else r["sell"],
+            "label": "Off-Peak" if r["label"] == "Super Off-Peak" else r["label"]}
+           for r in RYAN_BAU]
+FREE = (0.0, 0.0)
+
+
+async def _follow(hass, site, **inputs):
+    assert await async_setup_component(hass, "automation", {"automation": [
+        {"id": "f", "use_blueprint": {"path": FOLLOW, "input": {
+            "powerwall": site.device_id, **inputs}}}]})
+    await hass.async_block_till_done()
+
+
+async def test_simple_export_session(hass, site, bp_config, freezer):
+    freezer.move_to(at(WED, "10:00"))
+    octopus(hass, DOWN)
+    await _follow(hass, site, session_entity=DOWN, session_name="Power Down")
+    octopus(hass, DOWN, (1, at(WED, "18:00"), at(WED, "19:00")))
+    await hass.async_block_till_done()
+    t = last(site)
+    assert price(t, at(WED, "18:30")) == PEAK and price(t, at(WED, "21:00")) == MID
+    assert t["name"] == "Ryan BAU (Power Down)"
+
+
+async def test_simple_export_session_matches_ryans_old_settings(hass, site, bp_config,
+                                                                freezer):
+    freezer.move_to(at(WED, "10:00"))
+    octopus(hass, DOWN, (1, at(WED, "18:00"), at(WED, "19:00")))
+    await sync_down(site)  # what the old settings sent
+    old = last(site)
+    await site.call("clear_events")
+    octopus(hass, DOWN)
+    await _follow(hass, site, session_entity=DOWN, session_name="Power Down")
+    octopus(hass, DOWN, (1, at(WED, "18:00"), at(WED, "19:00")))
+    await hass.async_block_till_done()
+    assert last(site) == old
+
+
+@pytest.mark.parametrize(("inputs", "drain_from", "evening"), [
+    ({}, "11:00", MID),
+    ({"pre_minutes": 90}, "11:30", MID),
+    ({"pre_minutes": None}, "11:00", MID),
+    ({"empty_first": False}, None, MID),
+    ({"only_export_window": False}, "11:00", PEAK),
+])
+async def test_simple_free_session(hass, site, bp_config, freezer, inputs, drain_from,
+                                   evening):
+    await site.call("set_base_tariff", rates=SWAPPED, name="Ryan BAU")
+    freezer.move_to(at(WED, "08:00"))
+    octopus(hass, UP, attr="events")
+    await _follow(hass, site, session_entity=UP, session_name="Power Up",
+                  session_type="free", **inputs)
+    octopus(hass, UP, (9, at(WED, "13:00"), at(WED, "15:00")), attr="events")
+    await hass.async_block_till_done()
+    t = last(site)
+    # Free, and shown as Super Off-Peak once the overnight rate is Off-Peak.
+    assert price(t, at(WED, "13:30")) == FREE and price(t, at(WED, "14:45")) == FREE
+    sop = t["seasons"]["All Year"]["tou_periods"]["SUPER_OFF_PEAK"]["periods"]
+    assert [(p["fromHour"], p["toHour"]) for p in sop] == [(13, 15)]
+    assert price(t, at(WED, "02:00")) == (0.07, 0.0)
+    mid0 = (0.35, 0.0)
+    assert price(t, at(WED, "21:00")) == (mid0 if evening == MID else PEAK)
+    if drain_from is None:
+        assert price(t, at(WED, "12:45")) == mid0
+    else:
+        start = datetime.strptime(drain_from, "%H:%M")
+        assert price(t, at(WED, (start - timedelta(minutes=15)).strftime("%H:%M"))) == mid0
+        assert price(t, at(WED, drain_from)) == PEAK and price(t, at(WED, "12:45")) == PEAK
+    assert t["name"] == "Ryan BAU (Power Up)"
+
+
+async def test_simple_free_session_with_unswapped_plan_uses_spare_label(
+        hass, site, bp_config, freezer):
+    freezer.move_to(at(WED, "08:00"))
+    octopus(hass, UP, attr="events")
+    await _follow(hass, site, session_entity=UP, session_name="Power Up",
+                  session_type="free")
+    octopus(hass, UP, (9, at(WED, "13:00"), at(WED, "15:00")), attr="events")
+    await hass.async_block_till_done()
+    t = last(site)
+    assert price(t, at(WED, "13:30")) == FREE
+    assert [(p["fromHour"], p["toHour"]) for p in
+            t["seasons"]["All Year"]["tou_periods"]["OFF_PEAK"]["periods"]] == [(13, 15)]
+
+
+async def test_power_up_list_is_found_automatically(hass, site, bp_config, freezer):
+    """Octopus Power Up has 'events' (and 'available_events'), no 'joined_events'."""
+    freezer.move_to(at(WED, "08:00"))
+    hass.states.async_set(UP, "x", {"available_events": [
+        {"id": 5, "start": at(WED, "16:00"), "end": at(WED, "17:00")}], "events": []})
+    await _follow(hass, site, session_entity=UP, session_type="free",
+                  session_name="Power Up")
+    n = pushes(site)
+    octopus(hass, UP, (9, at(WED, "13:00"), at(WED, "14:00")), attr="events")
+    await hass.async_block_till_done()
+    assert pushes(site) == n + 1 and price(last(site), at(WED, "13:30")) == FREE
+    assert price(last(site), at(WED, "16:30")) == (0.35, 0.01)  # not joined: ignored
